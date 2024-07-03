@@ -11,8 +11,9 @@ import (
 
 var (
     clients = make(map[net.Conn]client.Client)
-    broadcast = make(chan(string))
+    broadcast = make(chan(string), 100)
     mutex = &sync.Mutex{}
+    waitgroup  sync.WaitGroup
     address = ":8080"
     network = "tcp"
 )
@@ -26,7 +27,7 @@ func main(){
     }
     defer listener.Close()
 
-    go server.HandleMessages(broadcast, clients, mutex)
+    go server.BroadcastMessages(broadcast, clients, mutex)
 
     fmt.Println("Chat server started on :8080")
 
@@ -36,9 +37,14 @@ func main(){
 	    // Accept waits for and returns the next connection to the listener.
         connection, err := listener.Accept()
         if err != nil {
-            os.Exit(1)
+            fmt.Println("Failed accepting connection")
+            continue
         }
 
-        go server.HandleConnection(connection, clients, broadcast)
+        waitgroup.Add(1)
+
+        go server.HandleConnection(connection, clients, broadcast, mutex, &waitgroup)
     }
+
+    waitgroup.Wait()
 }
